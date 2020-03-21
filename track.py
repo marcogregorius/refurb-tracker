@@ -3,11 +3,11 @@ from bs4 import BeautifulSoup
 import time
 import logging
 import sys
-import arrow
-logging.basicConfig(stream=sys.stdout, level=logging.INFO, format="[%(asctime)s] - %(message)s")
-import smtplib, ssl
+import smtplib
+import ssl
 from getpass import getpass
 import os
+logging.basicConfig(stream=sys.stdout, level=logging.INFO, format="[%(asctime)s] - %(message)s")
 
 WEB_URL = "https://www.apple.com/sg/shop/product/FTXP2ZP/A/Refurbished-11-inch-iPad-Pro-Wi-Fi-64GB-Silver"
 
@@ -17,6 +17,7 @@ MESSAGE = """\
 Subject: {part} is available.
 
 {content}"""
+
 
 class Ipad:
     def __str__(self):
@@ -32,6 +33,7 @@ class Silver(Ipad):
     TYPE = "FTXP2ZP/A"
     COLOR = "Silver"
 
+
 PARTS_TO_TRACK = [SpaceGrey(), Silver()]
 
 
@@ -39,19 +41,29 @@ class Application:
     def __init__(self):
         self.port = 465  # For SSL
         self.email = os.environ.get("EMAIL") or input("Email: ")
+        logging.info(f"Will be sending email to {self.email}")
         self.password = os.environ.get("EP") or getpass(prompt="Type your password and press enter: ")
         # Create a secure SSL context
         self.context = ssl.create_default_context()
+        self.emails_sent = 0
+
+        self.server = smtplib.SMTP_SSL("smtp.gmail.com", self.port, context=self.context)
+        try:
+            self.server.login(self.email, self.password)
+        except smtplib.SMTPAuthenticationError:
+            logging.error("Username / password is wrong.")
+            sys.exit(-1)
 
     def send_email(self, message):
-        with smtplib.SMTP_SSL("smtp.gmail.com", self.port, context=self.context) as server:
-                server.login(self.email, self.password)
-
-                server.sendmail(self.email, self.email, message)
-                logging.info("EMAIL SENT")
+        self.server.sendmail(self.email, self.email, message)
+        logging.info("EMAIL SENT")
+        self.emails_sent += 1
 
     def run(self):
         while True:
+            if self.emails_sent > 10:
+                return
+
             for part in PARTS_TO_TRACK:
                 params = {"parts.0": part.TYPE}
                 res = requests.get(API, params=params)
@@ -68,9 +80,9 @@ class Application:
                     continue
                 else:
                     content = f"""
-    Refurbished iPad Pro 11 inch {part.COLOR} is available!
+Refurbished iPad Pro 11 inch {part.COLOR} is available!
 
-    Link: {WEB_URL}
+Link: {WEB_URL}
                     """
                     message = MESSAGE.format(content=content, part=part)
                     self.send_email(message)
@@ -84,7 +96,7 @@ class Application:
         button = soup.find("button", {"type": "submit", "name": "add-to-cart"})
         button_cls = button.get("class")
 
-        return not "disabled" in button_cls
+        return "disabled" not in button_cls
 
     def parse_stock(self, json, part):
         part_info = json.get("body", {}).get("content", {}).get("deliveryMessage").get(part, {})
