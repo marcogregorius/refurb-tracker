@@ -32,6 +32,8 @@ class Silver(Ipad):
     TYPE = "FTXP2ZP/A"
     COLOR = "Silver"
 
+PARTS_TO_TRACK = [SpaceGrey(), Silver()]
+
 
 class Application:
     def __init__(self):
@@ -50,7 +52,7 @@ class Application:
 
     def run(self):
         while True:
-            for part in [SpaceGrey(), Silver()]:
+            for part in PARTS_TO_TRACK:
                 params = {"parts.0": part.TYPE}
                 res = requests.get(API, params=params)
 
